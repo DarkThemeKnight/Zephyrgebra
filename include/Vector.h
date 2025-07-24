@@ -14,6 +14,7 @@ extern "C" {
 
     // Memory management
     zephyr_vector *create_vector(size_t size);
+    zephyr_vector *vector_from_array(double data[],size_t size);
     void destroy_vector(zephyr_vector *vector);
     zephyr_vector *duplicate_vector(const zephyr_vector *vector);
     zephyr_vector *resize(const zephyr_vector *old, size_t size, double fill_with_value, bool last_element_only);

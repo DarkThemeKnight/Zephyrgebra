@@ -4,23 +4,24 @@ project(Zephyrgebra C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Create a single static library for the project
-add_library(Zephyrgebra STATIC src/Vector.c src/Matrix.c src/Polynomials.c
-        "tests/Testing Suite.c")
+# Include directories
+include_directories(include)
 
-# Expose public headers to users of the library
-target_include_directories(Zephyrgebra PUBLIC ${PROJECT_SOURCE_DIR}/include)
+# Source files
+set(ZEPHYRGEBRA_SOURCES
+    src/Matrix.c
+    src/Vector.c
+    src/Polynomials.c
+)
 
-# Enable testing
-enable_testing()
+# Add the library
+add_library(Zephyrgebra ${ZEPHYRGEBRA_SOURCES})
 
-# Create test executables
-add_executable(overall_test "tests/Testing Suite.c")
+# Link math library
+target_link_libraries(Zephyrgebra PRIVATE m)
 
-# Link the library to the test executables
-target_link_libraries(overall_test Zephyrgebra m)
+# Add test executable
+add_executable(matrix_test_basic test/Matrix/matrix_test_basic.c)
 
-# Register the tests with CTest
-add_test(NAME zephyr_test COMMAND overall_test)
-
-set_source_files_properties(src/Polynomials.c PROPERTIES LANGUAGE C)
+# Link Zephyrgebra library to the test executable
+target_link_libraries(matrix_test_basic PRIVATE Zephyrgebra)

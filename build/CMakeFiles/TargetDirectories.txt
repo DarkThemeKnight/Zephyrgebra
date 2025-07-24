@@ -1,0 +1,4 @@
+/home/omotola-david-ayanfeoluwa/Documents/C Tutorials/Zephyrgebra/build/CMakeFiles/Zephyrgebra.dir
+/home/omotola-david-ayanfeoluwa/Documents/C Tutorials/Zephyrgebra/build/CMakeFiles/matrix_test_basic.dir
+/home/omotola-david-ayanfeoluwa/Documents/C Tutorials/Zephyrgebra/build/CMakeFiles/edit_cache.dir
+/home/omotola-david-ayanfeoluwa/Documents/C Tutorials/Zephyrgebra/build/CMakeFiles/rebuild_cache.dir

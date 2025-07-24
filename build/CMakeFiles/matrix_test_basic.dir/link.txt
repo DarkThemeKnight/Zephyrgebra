@@ -1,0 +1,1 @@
+/usr/bin/cc -Wl,--dependency-file=CMakeFiles/matrix_test_basic.dir/link.d CMakeFiles/matrix_test_basic.dir/test/Matrix/matrix_test_basic.c.o -o matrix_test_basic  libZephyrgebra.a -lm

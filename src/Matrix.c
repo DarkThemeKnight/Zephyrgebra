@@ -63,6 +63,14 @@ zephyr_matrix * matrix_set(const size_t row, const size_t col, const double valu
     return matrix;
 }
 
+double matrix_get(const size_t row, const size_t col, const zephyr_matrix * matrix) {
+    if (!matrix || row >= matrix->m || col >= matrix->n) {
+        return NAN;
+    }
+    const size_t index = idx(row, col, matrix);
+    return matrix->data[index];
+}
+
 zephyr_matrix * add_matrices(const zephyr_matrix * matricxA, const zephyr_matrix * matricxB) {
     if (matricxA->m != matricxB->m || matricxA->n != matricxB->n) return NULL;
     zephyr_matrix * sum = create_matrix(matricxA->m, matricxA->n);
@@ -737,42 +745,6 @@ zephyr_matrix *rotation_matrix_2d(const zephyr_vector *to_rotate, double theta) 
     return result;
 }
 
-zephyr_matrix *rotate_3d(const zephyr_vector *v, double theta, rotation_axis axis) {
-    if (!v || v->size != 3) return NULL;
-
-    zephyr_matrix *R = create_matrix(3, 3);
-    if (!R) return NULL;
-
-    double c = cos(theta), s = sin(theta);
-
-    switch (axis) {
-        case ROTATE_X:
-            R->data[0] = 1; R->data[1] = 0;  R->data[2] = 0;
-            R->data[3] = 0; R->data[4] = c;  R->data[5] = -s;
-            R->data[6] = 0; R->data[7] = s;  R->data[8] = c;
-            break;
-
-        case ROTATE_Y:
-            R->data[0] = c;  R->data[1] = 0; R->data[2] = s;
-            R->data[3] = 0;  R->data[4] = 1; R->data[5] = 0;
-            R->data[6] = -s; R->data[7] = 0; R->data[8] = c;
-            break;
-
-        case ROTATE_Z:
-            R->data[0] = c;  R->data[1] = -s; R->data[2] = 0;
-            R->data[3] = s;  R->data[4] = c;  R->data[5] = 0;
-            R->data[6] = 0;  R->data[7] = 0;  R->data[8] = 1;
-            break;
-
-        default:
-            destroy_matrix(R);
-            return NULL;
-    }
-
-    zephyr_matrix *result = matrix_col_vector_mult(v, R);
-    destroy_matrix(R);
-    return result;
-}
 
 
 
@@ -807,6 +779,400 @@ zephyr_matrix *rotate_about_axis(const zephyr_vector *v, const zephyr_vector *ax
     return result;
 }
 
+zephyr_vector *translate_2d_vector(const zephyr_vector *point, const zephyr_vector *translation) {
+    if (!point || !translation || point->size != 2 || translation->size != 2)
+        return NULL;
+
+    zephyr_matrix *T = create_matrix(3, 3);
+    if (!T) return NULL;
+
+    // Construct 2D translation matrix
+    T->data[0] = 1; T->data[1] = 0; T->data[2] = translation->data[0];  // tx
+    T->data[3] = 0; T->data[4] = 1; T->data[5] = translation->data[1];  // ty
+    T->data[6] = 0; T->data[7] = 0; T->data[8] = 1;
+
+    // Convert point to 3x1 homogeneous vector
+    zephyr_matrix *p = create_matrix(3, 1);
+    if (!p) {
+        destroy_matrix(T);
+        return NULL;
+    }
+
+    p->data[0] = point->data[0];
+    p->data[1] = point->data[1];
+    p->data[2] = 1.0;
+
+    zephyr_matrix *translated = matrix_multiplication(T, p);
+    destroy_matrix(T);
+    destroy_matrix(p);
+    zephyr_vector * to_vector = vector_from_matrix(translated);
+    destroy_matrix(translated);
+    return to_vector;
+}
+
+zephyr_vector *translate_3d_vector(const zephyr_vector *point, const zephyr_vector *translation) {
+    if (!point || !translation || point->size != 3 || translation->size != 3)
+        return NULL;
+
+    zephyr_matrix *T = create_matrix(4, 4);
+    if (!T) return NULL;
+
+    T->data[0] = 1; T->data[1] = 0; T->data[2] = 0; T->data[3] = translation->data[0];
+    T->data[4] = 0; T->data[5] = 1; T->data[6] = 0; T->data[7] = translation->data[1];
+    T->data[8] = 0; T->data[9] = 0; T->data[10] = 1; T->data[11] = translation->data[2];
+    T->data[12] = 0; T->data[13] = 0; T->data[14] = 0; T->data[15] = 1;
+
+    // Convert point to 4x1 homogeneous
+    zephyr_matrix *p = create_matrix(4, 1);
+    if (!p) {
+        destroy_matrix(T);
+        return NULL;
+    }
+
+    p->data[0] = point->data[0];
+    p->data[1] = point->data[1];
+    p->data[2] = point->data[2];
+    p->data[3] = 1.0;
+
+    zephyr_matrix *translated = matrix_multiplication(T, p);
+    destroy_matrix(T);
+    destroy_matrix(p);
+    zephyr_vector * to_vector = vector_from_matrix(translated);
+    destroy_matrix(translated);
+    return to_vector;
+}
+
+zephyr_matrix *rotation_matrix_3d_xyz(double theta_x, double theta_y, double theta_z) {
+    zephyr_matrix *Rx = create_matrix(3, 3);
+    zephyr_matrix *Ry = create_matrix(3, 3);
+    zephyr_matrix *Rz = create_matrix(3, 3);
+
+    if (!Rx || !Ry || !Rz) return NULL;
+
+    // Rotation about X-axis
+    Rx->data[0] = 1;    Rx->data[1] = 0;            Rx->data[2] = 0;
+    Rx->data[3] = 0;    Rx->data[4] = cos(theta_x); Rx->data[5] = -sin(theta_x);
+    Rx->data[6] = 0;    Rx->data[7] = sin(theta_x); Rx->data[8] = cos(theta_x);
+
+    // Rotation about Y-axis
+    Ry->data[0] = cos(theta_y);  Ry->data[1] = 0; Ry->data[2] = sin(theta_y);
+    Ry->data[3] = 0;             Ry->data[4] = 1; Ry->data[5] = 0;
+    Ry->data[6] = -sin(theta_y); Ry->data[7] = 0; Ry->data[8] = cos(theta_y);
+
+    // Rotation about Z-axis
+    Rz->data[0] = cos(theta_z); Rz->data[1] = -sin(theta_z); Rz->data[2] = 0;
+    Rz->data[3] = sin(theta_z); Rz->data[4] = cos(theta_z);  Rz->data[5] = 0;
+    Rz->data[6] = 0;            Rz->data[7] = 0;             Rz->data[8] = 1;
+
+    // Combine R = Rz * Ry * Rx
+    zephyr_matrix *temp = matrix_multiplication(Rz, Ry);
+    zephyr_matrix *R = matrix_multiplication(temp, Rx);
+
+    destroy_matrix(Rx);
+    destroy_matrix(Ry);
+    destroy_matrix(Rz);
+    destroy_matrix(temp);
+
+    return R;
+}
+
+zephyr_vector *rotate_3d_per_axis(const zephyr_vector *v, double theta, rotation_axis axis) {
+    if (!v || v->size != 3) return NULL;
+
+    double tx = 0, ty = 0, tz = 0;
+
+    switch (axis) {
+        case ROTATE_X: tx = theta; break;
+        case ROTATE_Y: ty = theta; break;
+        case ROTATE_Z: tz = theta; break;
+        default: return NULL;
+    }
+
+    zephyr_matrix *R = rotation_matrix_3d_xyz(tx, ty, tz);
+    if (!R) return NULL;
+
+    zephyr_matrix *result = matrix_col_vector_mult(v, R);
+    destroy_matrix(R);
+    zephyr_vector * vector = vector_from_matrix(result);
+    destroy_matrix(result);
+    return vector;
+}
+
+zephyr_vector *rotate_3d_vector(const zephyr_vector *v,
+                                double theta_x, double theta_y, double theta_z) {
+    if (!v || v->size != 3) return NULL;
+
+    zephyr_matrix *R = rotation_matrix_3d_xyz(theta_x, theta_y, theta_z);
+    if (!R) return NULL;
+
+    zephyr_matrix *rotated_mat = matrix_col_vector_mult(v, R);
+    destroy_matrix(R);
+    if (!rotated_mat) return NULL;
+
+    zephyr_vector *rotated_vector = vector_from_matrix(rotated_mat);
+    destroy_matrix(rotated_mat);
+    return rotated_vector;
+}
+
+zephyr_vector *transform_3d_with_matrix(const zephyr_vector *v, const zephyr_matrix *T) {
+    if (!v || v->size != 3 || !T || T->m != 4 || T->n != 4)
+        return NULL;
+
+    // Homogenize input vector: [x, y, z, 1]^T
+    zephyr_matrix *vec4 = create_matrix(4, 1);
+    if (!vec4) return NULL;
+
+    vec4->data[0] = v->data[0];
+    vec4->data[1] = v->data[1];
+    vec4->data[2] = v->data[2];
+    vec4->data[3] = 1.0;
+
+    // Multiply: T * vec4
+    zephyr_matrix *result = matrix_multiplication(T, vec4);
+    destroy_matrix(vec4);
+    if (!result) return NULL;
+
+    // Extract 3D result
+    zephyr_vector *final = create_vector(3);
+    for (size_t i = 0; i < 3; ++i) {
+        final->data[i] = result->data[i];
+    }
+
+    destroy_matrix(result);
+    return final;
+}
 
 
+zephyr_vector *transform_3d(const zephyr_vector *v,
+                            double theta_x, double theta_y, double theta_z,
+                            const zephyr_vector *translation) {
+    if (!v || v->size != 3 || !translation || translation->size != 3)
+        return NULL;
 
+    zephyr_matrix *R3 = rotation_matrix_3d_xyz(theta_x, theta_y, theta_z);
+    if (!R3) return NULL;
+
+    zephyr_matrix *T = create_matrix(4, 4);
+    if (!T) {
+        destroy_matrix(R3);
+        return NULL;
+    }
+
+    // Top-left 3x3 rotation part
+    for (size_t i = 0; i < 3; ++i)
+        for (size_t j = 0; j < 3; ++j)
+            T->data[i * 4 + j] = R3->data[i * 3 + j];
+
+    // Translation
+    T->data[0 * 4 + 3] = translation->data[0];
+    T->data[1 * 4 + 3] = translation->data[1];
+    T->data[2 * 4 + 3] = translation->data[2];
+
+    // Last row [0 0 0 1]
+    T->data[3 * 4 + 3] = 1.0;
+
+    zephyr_matrix *vec4 = create_matrix(4, 1);
+    vec4->data[0] = v->data[0];
+    vec4->data[1] = v->data[1];
+    vec4->data[2] = v->data[2];
+    vec4->data[3] = 1.0;
+
+    zephyr_matrix *result = matrix_multiplication(T, vec4);
+
+    // Extract only the x, y, z part as a vector
+    zephyr_vector *final = create_vector(3);
+    for (size_t i = 0; i < 3; ++i) {
+        final->data[i] = result->data[i];
+    }
+
+    destroy_matrix(R3);
+    destroy_matrix(T);
+    destroy_matrix(vec4);
+    destroy_matrix(result);
+
+    return final;  // ✅ Now just a 3D vector
+}
+
+zephyr_vector * inverse_transformation_3d(const zephyr_vector *v,
+                            double theta_x, double theta_y, double theta_z,
+                            const zephyr_vector *translation) {
+    if (!v || v->size != 3 || !translation || translation->size != 3)
+        return NULL;
+
+    zephyr_matrix *R3 = rotation_matrix_3d_xyz(theta_x, theta_y, theta_z);
+    if (!R3) return NULL;
+
+    zephyr_matrix *R3_transpose = transpose(R3);
+    destroy_matrix(R3);
+    if (!R3_transpose) return NULL;
+
+    zephyr_matrix *T = create_matrix(4, 4);
+    if (!T) {
+        destroy_matrix(R3_transpose);
+        return NULL;
+    }
+
+    // Fill top-left 3x3 with R^T
+    for (size_t i = 0; i < 3; ++i)
+        for (size_t j = 0; j < 3; ++j)
+            T->data[i * 4 + j] = R3_transpose->data[i * 3 + j];
+
+    // Multiply R^T with translation vector and negate result
+    zephyr_matrix *t_mat = create_matrix(3, 1);
+    for (size_t i = 0; i < 3; ++i)
+        t_mat->data[i] = translation->data[i];
+
+    zephyr_matrix *Rt_t = matrix_multiplication(R3_transpose, t_mat);
+    destroy_matrix(t_mat);
+    if (!Rt_t) {
+        destroy_matrix(R3_transpose);
+        destroy_matrix(T);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < 3; ++i)
+        T->data[i * 4 + 3] = -Rt_t->data[i];
+
+    // Last row [0 0 0 1]
+    T->data[3 * 4 + 0] = 0.0;
+    T->data[3 * 4 + 1] = 0.0;
+    T->data[3 * 4 + 2] = 0.0;
+    T->data[3 * 4 + 3] = 1.0;
+
+    destroy_matrix(R3_transpose);
+    destroy_matrix(Rt_t);
+
+    // Convert v to homogeneous
+    zephyr_matrix *v4 = create_matrix(4, 1);
+    v4->data[0] = v->data[0];
+    v4->data[1] = v->data[1];
+    v4->data[2] = v->data[2];
+    v4->data[3] = 1.0;
+
+    zephyr_matrix *result = matrix_multiplication(T, v4);
+    destroy_matrix(T);
+    destroy_matrix(v4);
+
+    // Return only xyz part as vector
+    zephyr_vector *result_vec = create_vector(3);
+    if (!result_vec) {
+        destroy_matrix(result);
+        return NULL;
+    }
+    for (size_t i = 0; i < 3; ++i)
+        result_vec->data[i] = result->data[i];
+
+    destroy_matrix(result);
+    return result_vec;
+}
+
+zephyr_matrix *compose_transformations(const zephyr_matrix *R_AB, const zephyr_vector *P_AB,
+                                       const zephyr_matrix *R_BC, const zephyr_vector *P_BC) {
+    if (!R_AB || !P_AB || !R_BC || !P_BC)
+        return NULL;
+
+    // Validate sizes
+    if (R_AB->m != 3 || R_AB->n != 3 || R_BC->m != 3 || R_BC->n != 3 ||
+        P_AB->size != 3 || P_BC->size != 3)
+        return NULL;
+
+    // Step 1: R_AC = R_AB * R_BC
+    zephyr_matrix *R_AC = matrix_multiplication(R_AB, R_BC);
+    if (!R_AC) return NULL;
+
+    // Step 2: P_AC = R_AB * P_BC + P_AB
+    zephyr_matrix *P_BC_mat = create_matrix(3, 1);
+    memcpy(P_BC_mat->data, P_BC->data, sizeof(double) * 3);
+
+    zephyr_matrix *RAB_PBC = matrix_multiplication(R_AB, P_BC_mat);
+    destroy_matrix(P_BC_mat);
+    if (!RAB_PBC) {
+        destroy_matrix(R_AC);
+        return NULL;
+    }
+
+    zephyr_vector *P_AC = create_vector(3);
+    for (size_t i = 0; i < 3; ++i)
+        P_AC->data[i] = RAB_PBC->data[i] + P_AB->data[i];
+
+    destroy_matrix(RAB_PBC);
+
+    // Step 3: Construct full 4x4 homogeneous transform matrix
+    zephyr_matrix *T_AC = create_matrix(4, 4);
+    if (!T_AC) {
+        destroy_matrix(R_AC);
+        destroy_vector(P_AC);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < 3; ++i) {
+        for (size_t j = 0; j < 3; ++j) {
+            T_AC->data[i * 4 + j] = R_AC->data[i * 3 + j];
+        }
+        T_AC->data[i * 4 + 3] = P_AC->data[i];
+    }
+    T_AC->data[3 * 4 + 0] = 0.0;
+    T_AC->data[3 * 4 + 1] = 0.0;
+    T_AC->data[3 * 4 + 2] = 0.0;
+    T_AC->data[3 * 4 + 3] = 1.0;
+
+    destroy_matrix(R_AC);
+    destroy_vector(P_AC);
+    return T_AC;
+}
+
+zephyr_matrix *rigid_transform_about_axis(const zephyr_vector *axis_point,
+                                          const zephyr_vector *axis_dir,
+                                          double theta_rad) {
+    if (!axis_point || !axis_dir || axis_point->size != 3 || axis_dir->size != 3)
+        return NULL;
+    // Normalize axis
+    double ux = axis_dir->data[0], uy = axis_dir->data[1], uz = axis_dir->data[2];
+    double norm = sqrt(ux * ux + uy * uy + uz * uz);
+    if (norm < 1e-9) return NULL;
+    ux /= norm; uy /= norm; uz /= norm;
+
+    double c = cos(theta_rad);
+    double s = sin(theta_rad);
+    double t = 1 - c;
+
+    zephyr_matrix *R = create_matrix(3, 3);
+    R->data[0] = t * ux * ux + c;
+    R->data[1] = t * ux * uy - s * uz;
+    R->data[2] = t * ux * uz + s * uy;
+
+    R->data[3] = t * ux * uy + s * uz;
+    R->data[4] = t * uy * uy + c;
+    R->data[5] = t * uy * uz - s * ux;
+
+    R->data[6] = t * ux * uz - s * uy;
+    R->data[7] = t * uy * uz + s * ux;
+    R->data[8] = t * uz * uz + c;
+
+    // Build 4x4 homogeneous transform
+    zephyr_matrix *T = create_matrix(4, 4);
+    if (!T) { destroy_matrix(R); return NULL; }
+
+    // Fill rotation part
+    for (size_t i = 0; i < 3; ++i)
+        for (size_t j = 0; j < 3; ++j)
+            T->data[i * 4 + j] = R->data[i * 3 + j];
+
+    // Translation = -R * P + P
+    for (size_t i = 0; i < 3; ++i) {
+        double t_val = 0.0;
+        for (size_t j = 0; j < 3; ++j)
+            t_val += -R->data[i * 3 + j] * axis_point->data[j];
+        t_val += axis_point->data[i];
+        T->data[i * 4 + 3] = t_val;
+    }
+
+    // Final row
+    T->data[3 * 4 + 0] = 0;
+    T->data[3 * 4 + 1] = 0;
+    T->data[3 * 4 + 2] = 0;
+    T->data[3 * 4 + 3] = 1;
+
+    destroy_matrix(R);
+    return T;
+}

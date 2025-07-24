@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -75,6 +76,13 @@ struct zephyr_vector * vector_zero(const size_t size) {
     struct zephyr_vector * v = create_vector(size);
     if (!v) return NULL;
     vector_fill(v, 0.0);
+    return v;
+}
+
+struct zephyr_vector *vector_from_array(double data[],size_t size) {
+    struct zephyr_vector * v = create_vector(size);
+    if (!v) return NULL;
+    memcpy(v->data, data, size * sizeof(double));
     return v;
 }
 
